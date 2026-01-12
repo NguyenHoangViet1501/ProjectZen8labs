@@ -1,9 +1,11 @@
 package com.backend.quanlytasks.controller;
 
+import com.backend.quanlytasks.dto.request.FcmTokenRequest;
 import com.backend.quanlytasks.dto.response.Notification.NotificationListResponse;
 import com.backend.quanlytasks.entity.User;
 import com.backend.quanlytasks.repository.UserRepository;
 import com.backend.quanlytasks.service.NotificationService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -12,7 +14,7 @@ import org.springframework.web.bind.annotation.*;
 
 /**
  * API liên quan đến Notification
- * APIs: 15, 16
+ * APIs: 15, 16, FCM Token
  */
 @RestController
 @RequestMapping("/api/notifications")
@@ -63,6 +65,21 @@ public class NotificationController {
         User currentUser = getCurrentUser(authentication);
         notificationService.markAllAsRead(currentUser);
         return ResponseEntity.ok("Đánh dấu tất cả đã đọc thành công");
+    }
+
+    /**
+     * Cập nhật FCM token cho user
+     * Frontend gọi API này sau khi lấy được FCM token từ Firebase
+     */
+    @PostMapping("/fcm-token")
+    @PreAuthorize("hasAnyRole('ADMIN', 'USER')")
+    public ResponseEntity<String> updateFcmToken(
+            @Valid @RequestBody FcmTokenRequest request,
+            Authentication authentication) {
+
+        User currentUser = getCurrentUser(authentication);
+        notificationService.updateFcmToken(currentUser, request.getFcmToken());
+        return ResponseEntity.ok("Cập nhật FCM token thành công");
     }
 
     /**

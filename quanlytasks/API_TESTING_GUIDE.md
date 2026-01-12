@@ -265,6 +265,29 @@ PUT http://localhost:8080/api/notifications/read-all
 Authorization: Bearer <token>
 ```
 
+### Cập nhật FCM Token (cho Push Notification)
+**Endpoint:** `POST /api/notifications/fcm-token`  
+**Role:** ADMIN, USER
+
+Frontend gọi API này sau khi lấy được FCM token từ Firebase để nhận push notification.
+
+```http
+POST http://localhost:8080/api/notifications/fcm-token
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+    "fcmToken": "eKz7dM9xR..."
+}
+```
+
+**Response:**
+```json
+"Cập nhật FCM token thành công"
+```
+
+> 💡 **Lưu ý**: FCM token lấy từ Firebase JS SDK trên frontend. Khi có token mới (ví dụ: user đăng nhập trên thiết bị khác), cần gọi lại API này.
+
 ---
 
 ## API #17: Xem lịch sử Task
@@ -350,6 +373,7 @@ Authorization: Bearer <token>
 | 16 | Xem notification | GET | /api/notifications | ✅ | ✅ |
 | 17 | Xem lịch sử task | GET | /api/tasks/{id}/history | ✅ | ✅ |
 | 18 | Xuất report Excel | GET | /api/tasks/export | ✅ (all) | ✅ (own) |
+| 19 | Cập nhật FCM Token | POST | /api/notifications/fcm-token | ✅ | ✅ |
 
 ---
 

@@ -5,9 +5,11 @@ import com.backend.quanlytasks.dto.response.Comment.CommentResponse;
 import com.backend.quanlytasks.entity.Comment;
 import com.backend.quanlytasks.entity.Task;
 import com.backend.quanlytasks.entity.User;
+import com.backend.quanlytasks.event.TaskNotificationEvent.NotificationType;
 import com.backend.quanlytasks.repository.CommentRepository;
 import com.backend.quanlytasks.repository.TaskRepository;
 import com.backend.quanlytasks.service.CommentService;
+import com.backend.quanlytasks.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -20,6 +22,7 @@ public class CommentServiceImpl implements CommentService {
 
     private final CommentRepository commentRepository;
     private final TaskRepository taskRepository;
+    private final NotificationService notificationService;
 
     @Override
     public CommentResponse createComment(CreateCommentRequest request, User currentUser) {
@@ -28,6 +31,28 @@ public class CommentServiceImpl implements CommentService {
 
         Comment comment = mapToComment(request, task, currentUser);
         comment = commentRepository.save(comment);
+
+        // Gửi thông báo cho người tạo task (nếu không phải người comment)
+        if (task.getCreatedBy() != null && !task.getCreatedBy().getId().equals(currentUser.getId())) {
+            notificationService.publishTaskNotification(
+                    task.getCreatedBy(),
+                    "Comment mới trong task",
+                    currentUser.getFullName() + " đã comment trong task \"" + task.getTitle() + "\"",
+                    task,
+                    NotificationType.TASK_COMMENTED);
+        }
+
+        // Gửi thông báo cho người được giao task (nếu khác người comment và người tạo)
+        if (task.getAssignee() != null
+                && !task.getAssignee().getId().equals(currentUser.getId())
+                && !task.getAssignee().getId().equals(task.getCreatedBy().getId())) {
+            notificationService.publishTaskNotification(
+                    task.getAssignee(),
+                    "Comment mới trong task",
+                    currentUser.getFullName() + " đã comment trong task \"" + task.getTitle() + "\"",
+                    task,
+                    NotificationType.TASK_COMMENTED);
+        }
 
         return mapToCommentResponse(comment);
     }

@@ -5,33 +5,54 @@ import com.backend.quanlytasks.dto.response.Notification.NotificationResponse;
 import com.backend.quanlytasks.entity.Notification;
 import com.backend.quanlytasks.entity.Task;
 import com.backend.quanlytasks.entity.User;
+import com.backend.quanlytasks.event.TaskNotificationEvent;
+import com.backend.quanlytasks.event.TaskNotificationEvent.NotificationType;
 import com.backend.quanlytasks.repository.NotificationRepository;
+import com.backend.quanlytasks.repository.UserRepository;
 import com.backend.quanlytasks.service.NotificationService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class NotificationServiceImpl implements NotificationService {
 
     private final NotificationRepository notificationRepository;
+    private final UserRepository userRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
+    /**
+     * Legacy method - giữ để backward compatible
+     * Publish event với type mặc định là TASK_UPDATED
+     */
     @Override
     public void sendNotification(User recipient, String title, String message, Task relatedTask) {
-        Notification notification = Notification.builder()
-                .recipient(recipient)
-                .title(title)
-                .message(message)
-                .relatedTask(relatedTask)
-                .isRead(false)
-                .build();
+        publishTaskNotification(recipient, title, message, relatedTask, NotificationType.TASK_UPDATED);
+    }
 
-        notificationRepository.save(notification);
+    /**
+     * Publish TaskNotificationEvent
+     * Event sẽ được xử lý bởi TaskNotificationEventListener
+     */
+    @Override
+    public void publishTaskNotification(User recipient, String title, String message,
+            Task relatedTask, NotificationType type) {
+        log.info("Publishing TaskNotificationEvent: {} - {} cho user: {}",
+                type, title, recipient.getEmail());
+
+        TaskNotificationEvent event = new TaskNotificationEvent(
+                this, recipient, title, message, relatedTask, type);
+
+        eventPublisher.publishEvent(event);
     }
 
     @Override
@@ -75,6 +96,14 @@ public class NotificationServiceImpl implements NotificationService {
                     notification.setIsRead(true);
                     notificationRepository.save(notification);
                 });
+    }
+
+    @Override
+    @Transactional
+    public void updateFcmToken(User user, String fcmToken) {
+        user.setFcmToken(fcmToken);
+        userRepository.save(user);
+        log.info("Đã cập nhật FCM token cho user: {}", user.getEmail());
     }
 
     /**

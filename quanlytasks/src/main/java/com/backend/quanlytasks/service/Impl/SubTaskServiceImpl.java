@@ -26,9 +26,14 @@ public class SubTaskServiceImpl implements SubTaskService {
     private final UserRepository userRepository;
 
     @Override
-    public SubTaskResponse createSubTask(CreateSubTaskRequest request, User currentUser) {
+    public SubTaskResponse createSubTask(CreateSubTaskRequest request, User currentUser, boolean isAdmin) {
         Task parentTask = taskRepository.findByIdAndIsDelete(request.getParentTaskId(), 0)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy task cha"));
+
+        // Check permission: only Admin or Task Creator can create subtask
+        if (!isAdmin && !parentTask.getCreatedBy().getId().equals(currentUser.getId())) {
+            throw new RuntimeException("Chỉ Admin hoặc người tạo task mới có quyền tạo subtask");
+        }
 
         User assignee = null;
         if (request.getAssigneeId() != null) {
@@ -53,9 +58,13 @@ public class SubTaskServiceImpl implements SubTaskService {
             throw new RuntimeException("Không có quyền cập nhật subtask này");
         }
 
-        // Update fields
-        subTask.setTitle(request.getTitle());
-        subTask.setDescription(request.getDescription());
+        // Update fields only if provided (not null)
+        if (request.getTitle() != null) {
+            subTask.setTitle(request.getTitle());
+        }
+        if (request.getDescription() != null) {
+            subTask.setDescription(request.getDescription());
+        }
 
         if (request.getStatus() != null) {
             subTask.setStatus(request.getStatus());

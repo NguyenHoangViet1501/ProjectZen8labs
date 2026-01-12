@@ -15,7 +15,7 @@ public interface SubTaskService {
     /**
      * Tạo subtask mới
      */
-    SubTaskResponse createSubTask(CreateSubTaskRequest request, User currentUser);
+    SubTaskResponse createSubTask(CreateSubTaskRequest request, User currentUser, boolean isAdmin);
 
     /**
      * Cập nhật subtask

@@ -11,6 +11,7 @@ import com.backend.quanlytasks.dto.response.TaskHistory.TaskHistoryResponse;
 import com.backend.quanlytasks.entity.Tag;
 import com.backend.quanlytasks.entity.Task;
 import com.backend.quanlytasks.entity.User;
+import com.backend.quanlytasks.event.TaskNotificationEvent.NotificationType;
 import com.backend.quanlytasks.repository.TagRepository;
 import com.backend.quanlytasks.repository.TaskRepository;
 import com.backend.quanlytasks.repository.UserRepository;
@@ -22,6 +23,8 @@ import com.backend.quanlytasks.service.TaskService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+
+import java.time.LocalDateTime;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -45,6 +48,11 @@ public class TaskServiceImpl implements TaskService {
     @Override
     @Transactional
     public TaskResponse createTask(CreateTaskRequest request, User currentUser) {
+        // Validate dueDate không được trong quá khứ
+        if (request.getDueDate() != null && request.getDueDate().isBefore(LocalDateTime.now())) {
+            throw new RuntimeException("Deadline không được là thời gian trong quá khứ");
+        }
+
         // Process tags
         Set<Tag> tags = processTags(request.getTags());
 
@@ -59,14 +67,18 @@ public class TaskServiceImpl implements TaskService {
 
     @Override
     @Transactional
-    public TaskResponse updateTask(Long id, UpdateTaskRequest request, User currentUser) {
+    public TaskResponse updateTask(Long id, UpdateTaskRequest request, User currentUser, boolean isAdmin) {
         Task task = taskRepository.findByIdAndIsDelete(id, 0)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy task"));
 
-        // Check permission: owner or assignee
-        if (!task.getCreatedBy().getId().equals(currentUser.getId())
-                && (task.getAssignee() == null || !task.getAssignee().getId().equals(currentUser.getId()))) {
-            throw new RuntimeException("Không có quyền cập nhật task này");
+        // Check permission: Only ADMIN or Creator can update task details
+        if (!isAdmin && !task.getCreatedBy().getId().equals(currentUser.getId())) {
+            throw new RuntimeException("Chỉ ADMIN hoặc người tạo task mới có quyền cập nhật thông tin task");
+        }
+
+        // Validate dueDate không được trong quá khứ
+        if (request.getDueDate() != null && request.getDueDate().isBefore(LocalDateTime.now())) {
+            throw new RuntimeException("Deadline không được là thời gian trong quá khứ");
         }
 
         // Log changes
@@ -98,22 +110,24 @@ public class TaskServiceImpl implements TaskService {
 
         // Send notification to task creator if current user is not the creator
         if (!task.getCreatedBy().getId().equals(currentUser.getId())) {
-            notificationService.sendNotification(
+            notificationService.publishTaskNotification(
                     task.getCreatedBy(),
                     "Task đã được cập nhật",
                     "Task \"" + task.getTitle() + "\" đã được cập nhật bởi " + currentUser.getFullName(),
-                    task);
+                    task,
+                    NotificationType.TASK_UPDATED);
         }
 
         // Send notification to assignee if different from current user and creator
         if (task.getAssignee() != null
                 && !task.getAssignee().getId().equals(currentUser.getId())
                 && !task.getAssignee().getId().equals(task.getCreatedBy().getId())) {
-            notificationService.sendNotification(
+            notificationService.publishTaskNotification(
                     task.getAssignee(),
                     "Task đã được cập nhật",
                     "Task \"" + task.getTitle() + "\" đã được cập nhật bởi " + currentUser.getFullName(),
-                    task);
+                    task,
+                    NotificationType.TASK_UPDATED);
         }
 
         return mapToTaskResponse(task);
@@ -121,13 +135,13 @@ public class TaskServiceImpl implements TaskService {
 
     @Override
     @Transactional
-    public void softDeleteTask(Long id, User currentUser) {
+    public void softDeleteTask(Long id, User currentUser, boolean isAdmin) {
         Task task = taskRepository.findByIdAndIsDelete(id, 0)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy task"));
 
-        // Check permission: only owner can delete
-        if (!task.getCreatedBy().getId().equals(currentUser.getId())) {
-            throw new RuntimeException("Chỉ người tạo mới có quyền xóa task");
+        // Check permission: only owner or admin can delete
+        if (!isAdmin && !task.getCreatedBy().getId().equals(currentUser.getId())) {
+            throw new RuntimeException("Chỉ người tạo hoặc Admin mới có quyền xóa task");
         }
 
         task.setIsDelete(1);
@@ -146,6 +160,11 @@ public class TaskServiceImpl implements TaskService {
 
         Page<Task> taskPage;
 
+        // Get first tag for filtering (if any)
+        String tagName = (filter.getTags() != null && !filter.getTags().isEmpty())
+                ? filter.getTags().get(0)
+                : null;
+
         if (isAdmin) {
             // ADMIN: xem tất cả tasks
             taskPage = taskRepository.findAllWithFilters(
@@ -154,6 +173,7 @@ public class TaskServiceImpl implements TaskService {
                     filter.getAssigneeId(),
                     filter.getDueDateFrom(),
                     filter.getDueDateTo(),
+                    tagName,
                     pageable);
         } else {
             // USER: chỉ xem tasks của mình (tạo hoặc được assign)
@@ -163,6 +183,7 @@ public class TaskServiceImpl implements TaskService {
                     filter.getPriority(),
                     filter.getDueDateFrom(),
                     filter.getDueDateTo(),
+                    tagName,
                     pageable);
         }
 
@@ -186,14 +207,21 @@ public class TaskServiceImpl implements TaskService {
         Task task = taskRepository.findByIdAndIsDelete(id, 0)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy task"));
 
-        // Check permission
+        // Get related data first (needed for permission check)
+        List<SubTaskResponse> subtasks = subTaskService.getSubTasksByTaskId(id);
+
+        // Check if user is assigned to any subtask
+        boolean isSubtaskAssignee = subtasks.stream()
+                .anyMatch(st -> st.getAssigneeId() != null && st.getAssigneeId().equals(currentUser.getId()));
+
+        // Check permission: admin, creator, task assignee, or subtask assignee
         if (!isAdmin && !task.getCreatedBy().getId().equals(currentUser.getId())
-                && (task.getAssignee() == null || !task.getAssignee().getId().equals(currentUser.getId()))) {
+                && (task.getAssignee() == null || !task.getAssignee().getId().equals(currentUser.getId()))
+                && !isSubtaskAssignee) {
             throw new RuntimeException("Không có quyền xem task này");
         }
 
-        // Get related data
-        List<SubTaskResponse> subtasks = subTaskService.getSubTasksByTaskId(id);
+        // Get remaining related data
         List<CommentResponse> comments = commentService.getCommentsByTaskId(id);
         List<TaskHistoryResponse> history = taskHistoryService.getTaskHistory(id);
 
@@ -206,6 +234,11 @@ public class TaskServiceImpl implements TaskService {
         Task task = taskRepository.findByIdAndIsDelete(id, 0)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy task"));
 
+        // Chỉ người tạo task mới được giao task cho người khác
+        if (!task.getCreatedBy().getId().equals(currentUser.getId())) {
+            throw new RuntimeException("Bạn không có quyền giao task này. Chỉ người tạo task mới được giao.");
+        }
+
         User assignee = userRepository.findById(request.getAssigneeId())
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy người được giao"));
 
@@ -217,11 +250,12 @@ public class TaskServiceImpl implements TaskService {
         task = taskRepository.save(task);
 
         // Send notification to assignee
-        notificationService.sendNotification(
+        notificationService.publishTaskNotification(
                 assignee,
                 "Bạn được giao task mới",
                 "Bạn đã được giao task: " + task.getTitle(),
-                task);
+                task,
+                NotificationType.TASK_ASSIGNED);
 
         return mapToTaskResponse(task);
     }
@@ -232,9 +266,12 @@ public class TaskServiceImpl implements TaskService {
         Task task = taskRepository.findByIdAndIsDelete(id, 0)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy task"));
 
-        // Check permission: ADMIN or assignee
-        if (!isAdmin && (task.getAssignee() == null || !task.getAssignee().getId().equals(currentUser.getId()))) {
-            throw new RuntimeException("Chỉ ADMIN hoặc người được giao mới có quyền cập nhật trạng thái");
+        // Check permission: ADMIN, Creator, or Assignee
+        boolean isCreator = task.getCreatedBy().getId().equals(currentUser.getId());
+        boolean isAssignee = task.getAssignee() != null && task.getAssignee().getId().equals(currentUser.getId());
+
+        if (!isAdmin && !isCreator && !isAssignee) {
+            throw new RuntimeException("Bạn không có quyền cập nhật trạng thái task này");
         }
 
         String oldStatus = task.getStatus().name();
@@ -248,22 +285,24 @@ public class TaskServiceImpl implements TaskService {
 
         // Send notification to task creator about status change
         if (!task.getCreatedBy().getId().equals(currentUser.getId())) {
-            notificationService.sendNotification(
+            notificationService.publishTaskNotification(
                     task.getCreatedBy(),
                     "Task đã được cập nhật trạng thái",
                     "Task \"" + task.getTitle() + "\" đã chuyển từ " + oldStatus + " sang " + newStatus,
-                    task);
+                    task,
+                    NotificationType.TASK_STATUS_CHANGED);
         }
 
         // Send notification to assignee if different from current user and creator
         if (task.getAssignee() != null
                 && !task.getAssignee().getId().equals(currentUser.getId())
                 && !task.getAssignee().getId().equals(task.getCreatedBy().getId())) {
-            notificationService.sendNotification(
+            notificationService.publishTaskNotification(
                     task.getAssignee(),
                     "Task đã được cập nhật trạng thái",
                     "Task \"" + task.getTitle() + "\" đã chuyển từ " + oldStatus + " sang " + newStatus,
-                    task);
+                    task,
+                    NotificationType.TASK_STATUS_CHANGED);
         }
 
         return mapToTaskResponse(task);

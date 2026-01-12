@@ -653,6 +653,37 @@
 							]
 						}
 					}
+				},
+				{
+					"name": "API #19 - Cập nhật FCM Token",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"fcmToken\": \"your_fcm_token_from_firebase_js_sdk\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/notifications/fcm-token",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"notifications",
+								"fcm-token"
+							]
+						}
+					}
 				}
 			]
 		}

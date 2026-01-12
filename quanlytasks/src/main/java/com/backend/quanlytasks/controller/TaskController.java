@@ -60,7 +60,8 @@ public class TaskController {
             Authentication authentication) {
 
         User currentUser = getCurrentUser(authentication);
-        TaskResponse response = taskService.updateTask(id, request, currentUser);
+        boolean isAdmin = isAdmin(authentication);
+        TaskResponse response = taskService.updateTask(id, request, currentUser, isAdmin);
         return ResponseEntity.ok(response);
     }
 
@@ -75,7 +76,8 @@ public class TaskController {
             Authentication authentication) {
 
         User currentUser = getCurrentUser(authentication);
-        taskService.softDeleteTask(id, currentUser);
+        boolean isAdmin = isAdmin(authentication);
+        taskService.softDeleteTask(id, currentUser, isAdmin);
         return ResponseEntity.ok("Xóa task thành công");
     }
 

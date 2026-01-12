@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thông báo | Task Manager</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link th:href="@{/css/style.css}" rel="stylesheet">
+</head>
+
+<body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-light">
+        <div class="container">
+            <a class="navbar-brand" th:href="@{/tasks}">Task Manager</a>
+            <div class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/tasks}">Tasks</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" th:href="@{/notifications}">Thông báo</a>
+                    </li>
+                </ul>
+                <ul class="navbar-nav">
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">Tài khoản</a>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li>
+                                <form th:action="@{/logout}" method="post">
+                                    <button type="submit" class="dropdown-item">Đăng xuất</button>
+                                </form>
+                            </li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <main class="py-4">
+        <div class="container">
+            <div class="row justify-content-center">
+                <div class="col-lg-8">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <span>Thông báo</span>
+                            <form th:action="@{/notifications/read-all}" method="post"
+                                th:if="${unreadCount != null && unreadCount > 0}">
+                                <button type="submit" class="btn btn-sm btn-outline-primary">Đọc tất cả</button>
+                            </form>
+                        </div>
+                        <div class="card-body p-0">
+                            <div th:if="${notifications != null && notifications.content.size() > 0}">
+                                <div th:each="notif : ${notifications.content}" class="notification-item"
+                                    th:classappend="${!notif.isRead} ? 'unread'">
+                                    <a th:href="${notif.relatedTaskId != null} ? @{/tasks/{id}(id=${notif.relatedTaskId})} : '#'"
+                                        class="text-decoration-none text-dark d-block">
+                                        <div class="d-flex justify-content-between">
+                                            <div>
+                                                <div class="notification-title" th:text="${notif.title}">Title</div>
+                                                <div class="notification-message" th:text="${notif.message}">Message
+                                                </div>
+                                                <div class="notification-time"
+                                                    th:text="${#temporals.format(notif.createdAt, 'dd/MM/yyyy HH:mm')}">
+                                                    Time</div>
+                                            </div>
+                                            <span class="badge bg-primary" th:if="${!notif.isRead}">Mới</span>
+                                        </div>
+                                    </a>
+                                </div>
+                            </div>
+
+                            <div class="empty-state py-5"
+                                th:if="${notifications == null || notifications.content.size() == 0}">
+                                <h5>Không có thông báo</h5>
+                                <p class="text-muted">Bạn sẽ nhận thông báo khi có hoạt động liên quan đến task.</p>
+                            </div>
+                        </div>
+
+                        <div class="card-footer" th:if="${notifications != null && notifications.totalPages > 1}">
+                            <nav>
+                                <ul class="pagination pagination-sm justify-content-center mb-0">
+                                    <li class="page-item" th:classappend="${notifications.first} ? 'disabled'">
+                                        <a class="page-link"
+                                            th:href="@{/notifications(page=${notifications.number - 1})}">«</a>
+                                    </li>
+                                    <li class="page-item"
+                                        th:each="i : ${#numbers.sequence(0, notifications.totalPages - 1)}"
+                                        th:classappend="${i == notifications.number} ? 'active'">
+                                        <a class="page-link" th:href="@{/notifications(page=${i})}"
+                                            th:text="${i + 1}">1</a>
+                                    </li>
+                                    <li class="page-item" th:classappend="${notifications.last} ? 'disabled'">
+                                        <a class="page-link"
+                                            th:href="@{/notifications(page=${notifications.number + 1})}">»</a>
+                                    </li>
+                                </ul>
+                            </nav>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+
+</html>

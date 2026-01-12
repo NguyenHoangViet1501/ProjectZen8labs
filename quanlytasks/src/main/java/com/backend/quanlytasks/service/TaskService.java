@@ -19,12 +19,12 @@ public interface TaskService {
     /**
      * Cập nhật thông tin task
      */
-    TaskResponse updateTask(Long id, UpdateTaskRequest request, User currentUser);
+    TaskResponse updateTask(Long id, UpdateTaskRequest request, User currentUser, boolean isAdmin);
 
     /**
      * Xóa mềm task
      */
-    void softDeleteTask(Long id, User currentUser);
+    void softDeleteTask(Long id, User currentUser, boolean isAdmin);
 
     /**
      * Lấy danh sách task (có filter và phân trang)

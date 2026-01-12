@@ -28,7 +28,7 @@ public class SubTaskController {
 
     /**
      * API #10: Tạo subtask
-     * ADMIN và USER đều có thể tạo
+     * ADMIN hoặc người tạo task mới có thể tạo
      */
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'USER')")
@@ -37,7 +37,8 @@ public class SubTaskController {
             Authentication authentication) {
 
         User currentUser = getCurrentUser(authentication);
-        SubTaskResponse response = subTaskService.createSubTask(request, currentUser);
+        boolean isAdmin = isAdmin(authentication);
+        SubTaskResponse response = subTaskService.createSubTask(request, currentUser, isAdmin);
         return ResponseEntity.ok(response);
     }
 

@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đăng ký | Task Manager</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link th:href="@{/css/style.css}" rel="stylesheet">
+</head>
+
+<body>
+    <div class="auth-container">
+        <div class="card auth-card">
+            <div class="auth-logo">
+                <h1>Task Manager</h1>
+                <p class="text-muted">Tạo tài khoản mới</p>
+            </div>
+
+            <div th:if="${error}" class="alert alert-danger">
+                <span th:text="${error}">Error</span>
+            </div>
+
+            <form th:action="@{/register}" method="post">
+                <div class="mb-3">
+                    <label for="fullName" class="form-label">Họ và tên</label>
+                    <input type="text" class="form-control" id="fullName" name="fullName" required>
+                </div>
+
+                <div class="mb-3">
+                    <label for="email" class="form-label">Email</label>
+                    <input type="email" class="form-control" id="email" name="email" required>
+                </div>
+
+                <div class="mb-3">
+                    <label for="password" class="form-label">Mật khẩu</label>
+                    <div class="input-group">
+                        <input type="password" class="form-control" id="password" name="password" required
+                            minlength="6">
+                        <button class="btn btn-outline-secondary" type="button" onclick="togglePassword('password')"
+                            id="password-btn">Hiện</button>
+                    </div>
+                    <small class="text-muted">Tối thiểu 6 ký tự</small>
+                </div>
+
+                <div class="mb-3">
+                    <label for="confirmPassword" class="form-label">Xác nhận mật khẩu</label>
+                    <div class="input-group">
+                        <input type="password" class="form-control" id="confirmPassword" name="confirmPassword"
+                            required>
+                        <button class="btn btn-outline-secondary" type="button"
+                            onclick="togglePassword('confirmPassword')" id="confirmPassword-btn">Hiện</button>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary w-100 mb-3">Đăng ký</button>
+            </form>
+
+            <div class="text-center">
+                <span class="text-muted">Đã có tài khoản?</span>
+                <a th:href="@{/login}">Đăng nhập</a>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function togglePassword(inputId) {
+            var input = document.getElementById(inputId);
+            var btn = document.getElementById(inputId + '-btn');
+            if (input.type === 'password') {
+                input.type = 'text';
+                btn.textContent = 'Ẩn';
+            } else {
+                input.type = 'password';
+                btn.textContent = 'Hiện';
+            }
+        }
+
+        document.querySelector('form').addEventListener('submit', function (e) {
+            var password = document.getElementById('password').value;
+            var confirmPassword = document.getElementById('confirmPassword').value;
+            if (password !== confirmPassword) {
+                e.preventDefault();
+                alert('Mật khẩu xác nhận không khớp!');
+            }
+        });
+    </script>
+</body>
+
+</html>

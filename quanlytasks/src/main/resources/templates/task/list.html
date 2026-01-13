@@ -165,7 +165,8 @@
                         </thead>
                         <tbody>
                             <tr th:each="task : ${tasks.content}" style="cursor: pointer;"
-                                th:onclick="|window.location.href='/tasks/' + ${task.id}|">
+                                th:onclick="|window.location.href='/tasks/' + ${task.id}|"
+                                th:classappend="${task.isDeleted} ? 'deleted-task-row'">
                                 <td>
                                     <a th:href="@{/tasks/{id}(id=${task.id})}"
                                         class="text-decoration-none text-dark fw-semibold"
@@ -201,9 +202,23 @@
                                     <span th:if="${task.tags == null || task.tags.size() == 0}"
                                         class="text-muted">-</span>
                                 </td>
-                                <td class="text-end" style="width: 80px;" onclick="event.stopPropagation()">
+                                <td class="text-end" style="width: 100px;" onclick="event.stopPropagation()">
+                                    <!-- Admin: Toggle Switch -->
+                                    <span th:if="${isAdmin}">
+                                        <form th:action="@{/tasks/{id}/toggle-delete(id=${task.id})}" method="post"
+                                            style="display: inline;">
+                                            <input type="hidden" th:name="${_csrf.parameterName}"
+                                                th:value="${_csrf.token}" />
+                                            <button type="submit" class="toggle-switch"
+                                                th:classappend="${task.isDeleted} ? 'toggle-off' : 'toggle-on'"
+                                                th:title="${task.isDeleted} ? 'Click để hoàn tác' : 'Click để xóa'">
+                                                <span class="toggle-slider"></span>
+                                            </button>
+                                        </form>
+                                    </span>
+                                    <!-- User: Delete Button (uses Bootstrap modal) -->
                                     <button type="button" class="btn btn-danger btn-sm"
-                                        th:if="${task.createdById == currentUser.id || isAdmin}"
+                                        th:if="${!isAdmin && task.createdById == currentUser.id}"
                                         th:onclick="'confirmDelete(' + ${task.id} + ')'">
                                         Xóa
                                     </button>
@@ -307,6 +322,45 @@
             var deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
             deleteModal.show();
         }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            var successMsg = "[[${success}]]";
+            var errorMsg = "[[${error}]]";
+
+            // Clean up thymeleaf output if it's null string
+            if (successMsg === "null") successMsg = null;
+            if (errorMsg === "null") errorMsg = null;
+
+            if (successMsg) {
+                var toastEl = document.getElementById('liveToast');
+                var toastBody = document.getElementById('toastBody');
+                var toastTitle = document.getElementById('toastTitle');
+                var toastHeader = toastEl.querySelector('.toast-header');
+
+                toastBody.innerText = successMsg;
+                toastTitle.innerText = "Thành công";
+                toastHeader.style.backgroundColor = "#c8e6c9"; // Light green
+                toastEl.style.backgroundColor = "#e8f5e9";
+
+                var toast = new bootstrap.Toast(toastEl);
+                toast.show();
+            }
+
+            if (errorMsg) {
+                var toastEl = document.getElementById('liveToast');
+                var toastBody = document.getElementById('toastBody');
+                var toastTitle = document.getElementById('toastTitle');
+                var toastHeader = toastEl.querySelector('.toast-header');
+
+                toastBody.innerText = errorMsg;
+                toastTitle.innerText = "Lỗi";
+                toastHeader.style.backgroundColor = "#ffcdd2"; // Light red
+                toastEl.style.backgroundColor = "#ffebee";
+
+                var toast = new bootstrap.Toast(toastEl);
+                toast.show();
+            }
+        });
     </script>
     <!-- Firebase Messaging -->
     <script th:src="@{/js/firebase-messaging.js}"></script>

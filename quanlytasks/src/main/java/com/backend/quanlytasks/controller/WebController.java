@@ -10,6 +10,7 @@ import com.backend.quanlytasks.dto.response.Notification.NotificationListRespons
 import com.backend.quanlytasks.dto.response.Task.TaskDetailResponse;
 import com.backend.quanlytasks.dto.response.Task.TaskListResponse;
 import com.backend.quanlytasks.entity.Tag;
+import com.backend.quanlytasks.entity.Task;
 import com.backend.quanlytasks.entity.User;
 import com.backend.quanlytasks.repository.TagRepository;
 import com.backend.quanlytasks.repository.TaskRepository;
@@ -273,6 +274,44 @@ public class WebController {
         try {
             taskService.softDeleteTask(id, currentUser, isAdmin);
             redirectAttributes.addFlashAttribute("success", "Xóa task thành công!");
+        } catch (RuntimeException e) {
+            redirectAttributes.addFlashAttribute("error", e.getMessage());
+        }
+
+        return "redirect:/tasks";
+    }
+
+    /**
+     * Toggle delete status for Admin only
+     * If task is active (is_delete=0) -> soft delete it
+     * If task is deleted (is_delete=1) -> restore it
+     */
+    @PostMapping("/tasks/{id}/toggle-delete")
+    public String toggleTaskDelete(@PathVariable Long id,
+            Authentication authentication,
+            RedirectAttributes redirectAttributes) {
+        User currentUser = getCurrentUser(authentication);
+        boolean isAdmin = isAdmin(authentication);
+
+        if (!isAdmin) {
+            redirectAttributes.addFlashAttribute("error", "Chỉ Admin mới có quyền thực hiện thao tác này");
+            return "redirect:/tasks";
+        }
+
+        try {
+            // Check current state of task
+            Task task = taskRepository.findById(id)
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy task"));
+
+            if (task.getIsDelete() == 0) {
+                // Active -> Delete
+                taskService.softDeleteTask(id, currentUser, isAdmin);
+                redirectAttributes.addFlashAttribute("success", "Đã xóa task!");
+            } else {
+                // Deleted -> Restore
+                taskService.restoreTask(id, currentUser);
+                redirectAttributes.addFlashAttribute("success", "Đã hoàn tác task!");
+            }
         } catch (RuntimeException e) {
             redirectAttributes.addFlashAttribute("error", e.getMessage());
         }

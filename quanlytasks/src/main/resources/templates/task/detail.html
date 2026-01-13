@@ -51,6 +51,12 @@
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
 
+            <!-- Deleted Task Alert for Admin -->
+            <div th:if="${task.isDeleted && isAdmin}" class="deleted-task-alert">
+                <strong> Task này đã bị xóa.</strong>
+                Quay lại <a th:href="@{/tasks}">danh sách task</a> đổi trạng thái để hoàn tác.
+            </div>
+
             <div class="row">
                 <!-- Main Content -->
                 <div class="col-lg-8">
@@ -70,7 +76,8 @@
                                     <span th:case="'CANCELLED'">Đã hủy</span>
                                 </span>
                             </div>
-                            <div class="dropdown">
+                            <!-- Hide edit menu for deleted tasks -->
+                            <div class="dropdown" th:if="${!task.isDeleted}">
                                 <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="dropdown">⋮</button>
                                 <ul class="dropdown-menu dropdown-menu-end">
                                     <li><a class="dropdown-item" th:href="@{/tasks/{id}/edit(id=${task.id})}">Sửa</a>
@@ -79,10 +86,10 @@
                                         <hr class="dropdown-divider">
                                     </li>
                                     <li>
-                                        <form th:action="@{/tasks/{id}/delete(id=${task.id})}" method="post"
-                                            onsubmit="return confirm('Bạn có chắc chắn muốn xóa?')">
-                                            <button type="submit" class="dropdown-item text-danger">Xóa</button>
-                                        </form>
+                                        <button type="button" class="dropdown-item text-danger"
+                                            onclick="showDeleteTaskModal()">
+                                            Xóa
+                                        </button>
                                     </li>
                                 </ul>
                             </div>
@@ -125,7 +132,8 @@
                     <div class="card mb-4">
                         <div class="card-header d-flex justify-content-between align-items-center">
                             <span>Subtasks</span>
-                            <button th:if="${task.createdById == currentUser.id || isAdmin}"
+                            <!-- Hide add button when task is deleted -->
+                            <button th:if="${!task.isDeleted && (task.createdById == currentUser.id || isAdmin)}"
                                 class="btn btn-sm btn-primary" data-bs-toggle="collapse"
                                 data-bs-target="#addSubtaskForm">+ Thêm</button>
                         </div>
@@ -171,7 +179,7 @@
                                             <tr th:each="subtask, iterStat : ${task.subtasks}">
                                                 <td>
                                                     <span th:text="${subtask.title}"
-                                                        th:classappend="${subtask.status.name() == 'DONE'} ? 'text-decoration-line-through text-muted'">Title</span>
+                                                        th:classappend="${subtask.status.name() == 'DONE'} ? 'text-success fw-semibold'">Title</span>
                                                 </td>
                                                 <td>
                                                     <small class="text-muted"
@@ -182,7 +190,8 @@
                                                         th:text="${subtask.assigneeName ?: 'Chưa giao'}">Assignee</small>
                                                 </td>
                                                 <td>
-                                                    <form
+                                                    <!-- Show status change form only when task is not deleted -->
+                                                    <form th:if="${!task.isDeleted}"
                                                         th:action="@{/tasks/{taskId}/subtask/{subtaskId}/status(taskId=${task.id}, subtaskId=${subtask.id})}"
                                                         method="post">
                                                         <input type="hidden" th:name="${_csrf.parameterName}"
@@ -204,10 +213,20 @@
                                                                 hủy</option>
                                                         </select>
                                                     </form>
+                                                    <!-- Show status badge only when task is deleted (read-only) -->
+                                                    <span th:if="${task.isDeleted}" class="badge"
+                                                        th:classappend="'status-' + ${subtask.status.name().toLowerCase()}"
+                                                        th:switch="${subtask.status.name()}" style="font-size: 0.7rem;">
+                                                        <span th:case="'TODO'">Chờ xử lý</span>
+                                                        <span th:case="'IN_PROGRESS'">Đang làm</span>
+                                                        <span th:case="'DONE'">Hoàn thành</span>
+                                                        <span th:case="'CANCELLED'">Đã hủy</span>
+                                                    </span>
                                                 </td>
                                                 <td class="text-end">
-                                                    <!-- Sửa/Xóa buttons - only for Admin or Task Creator -->
-                                                    <span th:if="${task.createdById == currentUser.id || isAdmin}">
+                                                    <!-- Sửa/Xóa buttons - only for Admin or Task Creator AND when task is not deleted -->
+                                                    <span
+                                                        th:if="${!task.isDeleted && (task.createdById == currentUser.id || isAdmin)}">
                                                         <button type="button"
                                                             class="btn btn-outline-primary btn-sm me-1"
                                                             style="font-size: 0.7rem; padding: 2px 6px;"
@@ -215,15 +234,11 @@
                                                             th:data-bs-target="'#editSubtaskModal' + ${iterStat.index}">
                                                             Sửa
                                                         </button>
-                                                        <form
-                                                            th:action="@{/tasks/{taskId}/subtask/{subtaskId}/delete(taskId=${task.id}, subtaskId=${subtask.id})}"
-                                                            method="post" style="display: inline;"
-                                                            onsubmit="return confirm('Bạn có chắc chắn muốn xóa subtask này?')">
-                                                            <input type="hidden" th:name="${_csrf.parameterName}"
-                                                                th:value="${_csrf.token}" />
-                                                            <button type="submit" class="btn btn-danger btn-sm"
-                                                                style="font-size: 0.7rem; padding: 2px 6px;">Xóa</button>
-                                                        </form>
+                                                        <button type="button" class="btn btn-danger btn-sm"
+                                                            style="font-size: 0.7rem; padding: 2px 6px;"
+                                                            th:onclick="'showDeleteSubTaskModal(' + ${task.id} + ', ' + ${subtask.id} + ')'">
+                                                            Xóa
+                                                        </button>
                                                     </span>
 
                                                     <!-- Edit Subtask Modal -->
@@ -327,7 +342,9 @@
                                 Chưa có comment nào
                             </div>
 
-                            <form th:action="@{/tasks/{id}/comment(id=${task.id})}" method="post" class="mt-3">
+                            <!-- Hide comment form when task is deleted -->
+                            <form th:if="${!task.isDeleted}" th:action="@{/tasks/{id}/comment(id=${task.id})}"
+                                method="post" class="mt-3">
                                 <div class="input-group">
                                     <input type="text" class="form-control" name="content" placeholder="Viết comment..."
                                         required>
@@ -340,8 +357,8 @@
 
                 <!-- Sidebar -->
                 <div class="col-lg-4">
-                    <!-- Assign Task - Only show for task creator -->
-                    <div class="card mb-4" th:if="${task.createdById == currentUser.id}">
+                    <!-- Assign Task - Only show for task creator and when task is not deleted -->
+                    <div class="card mb-4" th:if="${!task.isDeleted && task.createdById == currentUser.id}">
                         <div class="card-header">Giao Task</div>
                         <div class="card-body">
                             <form th:action="@{/tasks/{id}/assign(id=${task.id})}" method="post">
@@ -359,8 +376,8 @@
                         </div>
                     </div>
 
-                    <!-- Quick Actions - Only show for users who can update task status -->
-                    <div class="card mb-4" th:if="${canUpdateTaskStatus}">
+                    <!-- Quick Actions - Only show for users who can update task status and when task is not deleted -->
+                    <div class="card mb-4" th:if="${!task.isDeleted && canUpdateTaskStatus}">
                         <div class="card-header">Cập nhật trạng thái</div>
                         <div class="card-body">
                             <form th:action="@{/tasks/{id}/status(id=${task.id})}" method="post">
@@ -426,6 +443,103 @@
 
     <!-- Firebase Messaging -->
     <script th:src="@{/js/firebase-messaging.js}"></script>
+
+    <!-- Delete Task Confirmation Modal -->
+    <div class="modal fade" id="deleteTaskModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Xác nhận xóa</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    Bạn có chắc chắn muốn xóa task này không?
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                    <form id="deleteTaskForm" method="post" th:action="@{/tasks/{id}/delete(id=${task.id})}">
+                        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+                        <button type="submit" class="btn btn-danger">Xóa</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Subtask Confirmation Modal -->
+    <div class="modal fade" id="deleteSubTaskModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Xác nhận xóa Subtask</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    Bạn có chắc chắn muốn xóa subtask này không?
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                    <form id="deleteSubTaskForm" method="post">
+                        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+                        <button type="submit" class="btn btn-danger">Xóa</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function showDeleteTaskModal() {
+            var deleteModal = new bootstrap.Modal(document.getElementById('deleteTaskModal'));
+            deleteModal.show();
+        }
+
+        function showDeleteSubTaskModal(taskId, subTaskId) {
+            var form = document.getElementById('deleteSubTaskForm');
+            form.action = '/tasks/' + taskId + '/subtask/' + subTaskId + '/delete';
+            var deleteModal = new bootstrap.Modal(document.getElementById('deleteSubTaskModal'));
+            deleteModal.show();
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            var successMsg = "[[${success}]]";
+            var errorMsg = "[[${error}]]";
+
+            // Clean up thymeleaf output if it's null string
+            if (successMsg === "null") successMsg = null;
+            if (errorMsg === "null") errorMsg = null;
+
+            if (successMsg) {
+                var toastEl = document.getElementById('liveToast');
+                var toastBody = document.getElementById('toastBody');
+                var toastTitle = document.getElementById('toastTitle');
+                var toastHeader = toastEl.querySelector('.toast-header');
+
+                toastBody.innerText = successMsg;
+                toastTitle.innerText = "Thành công";
+                toastHeader.style.backgroundColor = "#c8e6c9"; // Light green
+                toastEl.style.backgroundColor = "#e8f5e9";
+
+                var toast = new bootstrap.Toast(toastEl);
+                toast.show();
+            }
+
+            if (errorMsg) {
+                var toastEl = document.getElementById('liveToast');
+                var toastBody = document.getElementById('toastBody');
+                var toastTitle = document.getElementById('toastTitle');
+                var toastHeader = toastEl.querySelector('.toast-header');
+
+                toastBody.innerText = errorMsg;
+                toastTitle.innerText = "Lỗi";
+                toastHeader.style.backgroundColor = "#ffcdd2"; // Light red
+                toastEl.style.backgroundColor = "#ffebee";
+
+                var toast = new bootstrap.Toast(toastEl);
+                toast.show();
+            }
+        });
+    </script>
 </body>
 
 </html>

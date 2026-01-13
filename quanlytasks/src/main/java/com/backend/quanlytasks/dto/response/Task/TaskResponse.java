@@ -44,4 +44,9 @@ public class TaskResponse {
     private LocalDateTime createdAt;
 
     private LocalDateTime updatedAt;
+
+    /**
+     * Flag để Admin biết task đã bị xóa hay chưa (cho toggle button)
+     */
+    private boolean isDeleted;
 }

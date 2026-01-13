@@ -53,4 +53,9 @@ public class TaskDetailResponse {
     private List<CommentResponse> comments;
 
     private List<TaskHistoryResponse> history;
+
+    /**
+     * Flag để Admin biết task đã bị xóa hay chưa (để disable edit)
+     */
+    private boolean isDeleted;
 }

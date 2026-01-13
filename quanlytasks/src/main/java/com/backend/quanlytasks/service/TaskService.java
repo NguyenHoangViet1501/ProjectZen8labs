@@ -51,4 +51,10 @@ public interface TaskService {
      * ADMIN xuất tất cả task, USER xuất task của mình
      */
     byte[] exportTasksToExcel(User currentUser, boolean isAdmin);
+
+    /**
+     * Khôi phục task đã xóa (chỉ ADMIN)
+     * Gửi notification cho assignee rằng task được hoàn tác
+     */
+    void restoreTask(Long id, User currentUser);
 }

@@ -24,10 +24,10 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
 
         /**
          * Lấy danh sách task với phân trang và filter
-         * Dùng cho ADMIN (xem tất cả)
+         * Dùng cho ADMIN (xem tất cả bao gồm cả task đã xóa mềm)
          */
-        @Query("SELECT DISTINCT t FROM Task t LEFT JOIN t.tags tag WHERE t.isDelete = 0 " +
-                        "AND (:status IS NULL OR t.status = :status) " +
+        @Query("SELECT DISTINCT t FROM Task t LEFT JOIN t.tags tag " +
+                        "WHERE (:status IS NULL OR t.status = :status) " +
                         "AND (:priority IS NULL OR t.priority = :priority) " +
                         "AND (:assigneeId IS NULL OR t.assignee.id = :assigneeId) " +
                         "AND (:dueDateFrom IS NULL OR t.dueDate >= :dueDateFrom) " +

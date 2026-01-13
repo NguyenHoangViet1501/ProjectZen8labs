@@ -1,6 +1,7 @@
 package com.backend.quanlytasks.service.Impl;
 
 import com.backend.quanlytasks.common.enums.TaskStatus;
+import com.backend.quanlytasks.common.enums.RoleName;
 import com.backend.quanlytasks.dto.request.Task.*;
 import com.backend.quanlytasks.dto.response.Comment.CommentResponse;
 import com.backend.quanlytasks.dto.response.SubTask.SubTaskResponse;
@@ -149,6 +150,47 @@ public class TaskServiceImpl implements TaskService {
 
         // Log deletion
         taskHistoryService.logChange(task, currentUser, "deleted", null, "Task đã bị xóa");
+
+        if (isAdmin) {
+            // Admin deleted task -> notify assignee and creator
+            if (task.getAssignee() != null && !task.getAssignee().getId().equals(currentUser.getId())) {
+                // Force initialization for async listener
+                task.getAssignee().getFcmToken();
+                notificationService.publishTaskNotification(
+                        task.getAssignee(),
+                        "Task đã bị xóa",
+                        "Task \"" + task.getTitle() + "\" đã bị xóa bởi Admin",
+                        task,
+                        NotificationType.TASK_UPDATED);
+            }
+            // Also notify creator if different from assignee and current user
+            if (task.getCreatedBy() != null
+                    && !task.getCreatedBy().getId().equals(currentUser.getId())
+                    && (task.getAssignee() == null
+                            || !task.getCreatedBy().getId().equals(task.getAssignee().getId()))) {
+                // Force initialization for async listener
+                task.getCreatedBy().getFcmToken();
+                notificationService.publishTaskNotification(
+                        task.getCreatedBy(),
+                        "Task đã bị xóa",
+                        "Task \"" + task.getTitle() + "\" đã bị xóa bởi Admin",
+                        task,
+                        NotificationType.TASK_UPDATED);
+            }
+        } else {
+            // User deleted task -> notify all Admins
+            List<User> admins = userRepository.findByRolesName(RoleName.ADMIN);
+            for (User admin : admins) {
+                if (!admin.getId().equals(currentUser.getId())) {
+                    notificationService.publishTaskNotification(
+                            admin,
+                            "Task đã bị xóa",
+                            "Task \"" + task.getTitle() + "\" đã bị xóa bởi " + currentUser.getFullName(),
+                            task,
+                            NotificationType.TASK_UPDATED);
+                }
+            }
+        }
     }
 
     @Override
@@ -204,8 +246,15 @@ public class TaskServiceImpl implements TaskService {
 
     @Override
     public TaskDetailResponse getTaskDetail(Long id, User currentUser, boolean isAdmin) {
-        Task task = taskRepository.findByIdAndIsDelete(id, 0)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy task"));
+        // Admin can view deleted tasks, users cannot
+        Task task;
+        if (isAdmin) {
+            task = taskRepository.findById(id)
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy task"));
+        } else {
+            task = taskRepository.findByIdAndIsDelete(id, 0)
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy task"));
+        }
 
         // Get related data first (needed for permission check)
         List<SubTaskResponse> subtasks = subTaskService.getSubTasksByTaskId(id);
@@ -368,6 +417,7 @@ public class TaskServiceImpl implements TaskService {
                 .tags(tagNames)
                 .createdAt(task.getCreatedAt())
                 .updatedAt(task.getUpdatedAt())
+                .isDeleted(task.getIsDelete() == 1)
                 .build();
     }
 
@@ -400,6 +450,7 @@ public class TaskServiceImpl implements TaskService {
                 .subtasks(subtasks)
                 .comments(comments)
                 .history(history)
+                .isDeleted(task.getIsDelete() == 1)
                 .build();
     }
 
@@ -488,6 +539,51 @@ public class TaskServiceImpl implements TaskService {
 
         } catch (java.io.IOException e) {
             throw new RuntimeException("Lỗi khi xuất file Excel: " + e.getMessage());
+        }
+    }
+
+    @Override
+    @Transactional
+    public void restoreTask(Long id, User currentUser) {
+        // Find task including deleted ones (is_delete = 1)
+        Task task = taskRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy task"));
+
+        if (task.getIsDelete() == 0) {
+            throw new RuntimeException("Task này chưa bị xóa");
+        }
+
+        // Restore task
+        task.setIsDelete(0);
+        taskRepository.save(task);
+
+        // Log restore
+        taskHistoryService.logChange(task, currentUser, "restored", "Task đã bị xóa", "Task đã được hoàn tác");
+
+        // Notify assignee that task has been restored
+        if (task.getAssignee() != null && !task.getAssignee().getId().equals(currentUser.getId())) {
+            // Force initialization
+            task.getAssignee().getFcmToken();
+            notificationService.publishTaskNotification(
+                    task.getAssignee(),
+                    "Task đã được hoàn tác",
+                    "Task \"" + task.getTitle() + "\" đã được hoàn tác bởi Admin",
+                    task,
+                    NotificationType.TASK_UPDATED);
+        }
+
+        // Also notify task creator if different from assignee and current user
+        if (task.getCreatedBy() != null
+                && !task.getCreatedBy().getId().equals(currentUser.getId())
+                && (task.getAssignee() == null || !task.getCreatedBy().getId().equals(task.getAssignee().getId()))) {
+            // Force initialization
+            task.getCreatedBy().getFcmToken();
+            notificationService.publishTaskNotification(
+                    task.getCreatedBy(),
+                    "Task đã được hoàn tác",
+                    "Task \"" + task.getTitle() + "\" đã được hoàn tác bởi Admin",
+                    task,
+                    NotificationType.TASK_UPDATED);
         }
     }
 }

@@ -98,7 +98,7 @@ public class WebController {
             @RequestParam(required = false) String dueDateFrom,
             @RequestParam(required = false) String dueDateTo,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "12") int size,
+            @RequestParam(defaultValue = "8") int size,
             Model model,
             Authentication authentication) {
         User currentUser = getCurrentUser(authentication);

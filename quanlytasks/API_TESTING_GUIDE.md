@@ -87,26 +87,26 @@ Authorization: Bearer <token>
 
 ### Với filter (đầy đủ tham số)
 ```http
-GET http://localhost:8080/api/tasks?status=&priority=&assigneeId=&dueDateFrom=&dueDateTo=&page=0&size=10
+GET http://localhost:8080/api/tasks?status=&priority=&assigneeId=&dueDateFrom=&dueDateTo=&page=0&size=8
 Authorization: Bearer <token>
 ```
 
 ### Ví dụ filter cụ thể
 ```http
-GET http://localhost:8080/api/tasks?status=TODO&priority=HIGH&assigneeId=2&dueDateFrom=2025-01-01T00:00:00&dueDateTo=2025-01-31T23:59:59&page=0&size=10
+GET http://localhost:8080/api/tasks?status=TODO&priority=HIGH&assigneeId=2&dueDateFrom=2025-01-01T00:00:00&dueDateTo=2025-01-31T23:59:59&page=0&size=8
 Authorization: Bearer <token>
 ```
 
 ### Tham số filter có thể dùng:
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| status | Enum | TODO, IN_PROGRESS, DONE, CANCELLED |
-| priority | Enum | LOW, MEDIUM, HIGH |
-| assigneeId | Long | ID của người được giao |
-| dueDateFrom | DateTime | Từ ngày (ISO format) |
-| dueDateTo | DateTime | Đến ngày (ISO format) |
-| page | Integer | Số trang (bắt đầu từ 0) |
-| size | Integer | Số item mỗi trang |
+| Parameter | Type | Description | Default |
+|-----------|------|-------------|---------|
+| status | Enum | TODO, IN_PROGRESS, DONE, CANCELLED | (all) |
+| priority | Enum | LOW, MEDIUM, HIGH | (all) |
+| assigneeId | Long | ID của người được giao | (none) |
+| dueDateFrom | DateTime | Từ ngày (ISO format) | (none) |
+| dueDateTo | DateTime | Đến ngày (ISO format) | (none) |
+| page | Integer | Số trang (bắt đầu từ 0) | 0 |
+| size | Integer | Số item mỗi trang | **8** |
 
 ---
 
@@ -239,6 +239,8 @@ Content-Type: application/json
 GET http://localhost:8080/api/comments/task/1
 Authorization: Bearer <token>
 ```
+
+> 💡 **Lưu ý**: Comments được sắp xếp theo thời gian tăng dần (comment cũ nhất hiển thị trước, mới nhất ở cuối).
 
 ---
 
@@ -388,3 +390,20 @@ Authorization: Bearer <token>
 | content | "Nội dung comment không được để trống" |
 | assigneeId | "ID người được giao không được để trống" |
 | parentTaskId | "ID task cha không được để trống" |
+
+---
+
+## Ghi chú về Thông báo (Notifications)
+
+### Ai nhận được thông báo?
+
+| Hành động | Người nhận thông báo |
+|-----------|---------------------|
+| **Cập nhật Task** | Người tạo task, người thực hiện task, **người được giao subtask** |
+| **Thay đổi trạng thái Task** | Người tạo task, người thực hiện task, **người được giao subtask** |
+| **Giao Task cho người mới** | Người thực hiện mới, **người thực hiện cũ** (nếu có) |
+| **Comment trong Task** | Người tạo task, người thực hiện task, **tất cả người được giao subtask** |
+| **Thay đổi SubTask** | Người tạo task cha, người thực hiện task cha, người được giao subtask |
+
+> 💡 **Lưu ý**: Người thực hiện hành động sẽ **không** nhận thông báo về hành động của chính mình.
+

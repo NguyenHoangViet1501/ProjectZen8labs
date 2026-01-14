@@ -13,6 +13,7 @@ import com.backend.quanlytasks.entity.Tag;
 import com.backend.quanlytasks.entity.Task;
 import com.backend.quanlytasks.entity.User;
 import com.backend.quanlytasks.event.TaskNotificationEvent.NotificationType;
+import com.backend.quanlytasks.repository.SubTaskRepository;
 import com.backend.quanlytasks.repository.TagRepository;
 import com.backend.quanlytasks.repository.TaskRepository;
 import com.backend.quanlytasks.repository.UserRepository;
@@ -41,6 +42,7 @@ public class TaskServiceImpl implements TaskService {
     private final TaskRepository taskRepository;
     private final TagRepository tagRepository;
     private final UserRepository userRepository;
+    private final SubTaskRepository subTaskRepository;
     private final TaskHistoryService taskHistoryService;
     private final SubTaskService subTaskService;
     private final CommentService commentService;
@@ -131,6 +133,12 @@ public class TaskServiceImpl implements TaskService {
                     NotificationType.TASK_UPDATED);
         }
 
+        // Send notification to subtask assignees
+        sendNotificationToSubtaskAssignees(task, currentUser,
+                "Task cha đã được cập nhật",
+                "Task \"" + task.getTitle() + "\" đã được cập nhật bởi " + currentUser.getFullName(),
+                NotificationType.TASK_UPDATED);
+
         return mapToTaskResponse(task);
     }
 
@@ -197,7 +205,7 @@ public class TaskServiceImpl implements TaskService {
     public TaskListResponse getTaskList(TaskFilterRequest filter, User currentUser, boolean isAdmin) {
         Pageable pageable = PageRequest.of(
                 filter.getPage() != null ? filter.getPage() : 0,
-                filter.getSize() != null ? filter.getSize() : 10,
+                filter.getSize() != null ? filter.getSize() : 8,
                 Sort.by(Sort.Direction.DESC, "createdAt"));
 
         Page<Task> taskPage;
@@ -288,23 +296,36 @@ public class TaskServiceImpl implements TaskService {
             throw new RuntimeException("Bạn không có quyền giao task này. Chỉ người tạo task mới được giao.");
         }
 
-        User assignee = userRepository.findById(request.getAssigneeId())
+        User newAssignee = userRepository.findById(request.getAssigneeId())
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy người được giao"));
 
-        // Log change
-        String oldAssignee = task.getAssignee() != null ? task.getAssignee().getFullName() : "Chưa giao";
-        taskHistoryService.logChange(task, currentUser, "assignee", oldAssignee, assignee.getFullName());
+        // Lưu lại người thực hiện cũ (nếu có)
+        User oldAssignee = task.getAssignee();
+        String oldAssigneeName = oldAssignee != null ? oldAssignee.getFullName() : "Chưa giao";
 
-        task.setAssignee(assignee);
+        // Log change
+        taskHistoryService.logChange(task, currentUser, "assignee", oldAssigneeName, newAssignee.getFullName());
+
+        task.setAssignee(newAssignee);
         task = taskRepository.save(task);
 
-        // Send notification to assignee
+        // Send notification to new assignee
         notificationService.publishTaskNotification(
-                assignee,
+                newAssignee,
                 "Bạn được giao task mới",
                 "Bạn đã được giao task: " + task.getTitle(),
                 task,
                 NotificationType.TASK_ASSIGNED);
+
+        // Send notification to old assignee (if exists and different from new assignee)
+        if (oldAssignee != null && !oldAssignee.getId().equals(newAssignee.getId())) {
+            notificationService.publishTaskNotification(
+                    oldAssignee,
+                    "Task đã được giao cho người khác",
+                    "Task \"" + task.getTitle() + "\" đã được giao cho " + newAssignee.getFullName(),
+                    task,
+                    NotificationType.TASK_UPDATED);
+        }
 
         return mapToTaskResponse(task);
     }
@@ -353,6 +374,12 @@ public class TaskServiceImpl implements TaskService {
                     task,
                     NotificationType.TASK_STATUS_CHANGED);
         }
+
+        // Send notification to subtask assignees
+        sendNotificationToSubtaskAssignees(task, currentUser,
+                "Task cha đã thay đổi trạng thái",
+                "Task \"" + task.getTitle() + "\" đã chuyển từ " + oldStatus + " sang " + newStatus,
+                NotificationType.TASK_STATUS_CHANGED);
 
         return mapToTaskResponse(task);
     }
@@ -584,6 +611,44 @@ public class TaskServiceImpl implements TaskService {
                     "Task \"" + task.getTitle() + "\" đã được hoàn tác bởi Admin",
                     task,
                     NotificationType.TASK_UPDATED);
+        }
+    }
+
+    /**
+     * Helper: Gửi notification cho tất cả subtask assignees của một task
+     * Dùng khi có thay đổi ở task cha (update, status change, delete, restore)
+     * Loại trừ: currentUser, task creator, task assignee (đã được gửi riêng)
+     */
+    private void sendNotificationToSubtaskAssignees(Task task, User currentUser,
+            String title, String message, NotificationType type) {
+        // Get all active subtasks of this task
+        List<com.backend.quanlytasks.entity.SubTask> subtasks = subTaskRepository
+                .findByParentTaskIdAndIsDelete(task.getId(), 0);
+
+        // Collect unique subtask assignees
+        Set<Long> notifiedUserIds = new HashSet<>();
+
+        // Add already notified users (creator and assignee)
+        notifiedUserIds.add(currentUser.getId());
+        if (task.getCreatedBy() != null) {
+            notifiedUserIds.add(task.getCreatedBy().getId());
+        }
+        if (task.getAssignee() != null) {
+            notifiedUserIds.add(task.getAssignee().getId());
+        }
+
+        // Send notification to each subtask assignee (if not already notified)
+        for (com.backend.quanlytasks.entity.SubTask subTask : subtasks) {
+            User subtaskAssignee = subTask.getAssignee();
+            if (subtaskAssignee != null && !notifiedUserIds.contains(subtaskAssignee.getId())) {
+                notifiedUserIds.add(subtaskAssignee.getId());
+                notificationService.publishTaskNotification(
+                        subtaskAssignee,
+                        title,
+                        message,
+                        task,
+                        type);
+            }
         }
     }
 }

@@ -236,7 +236,7 @@
 							}
 						],
 						"url": {
-							"raw": "{{baseUrl}}/api/tasks?status=TODO&priority=HIGH&page=0&size=10",
+							"raw": "{{baseUrl}}/api/tasks?status=TODO&priority=HIGH&page=0&size=8",
 							"host": [
 								"{{baseUrl}}"
 							],
@@ -259,7 +259,7 @@
 								},
 								{
 									"key": "size",
-									"value": "10"
+									"value": "8"
 								}
 							]
 						}

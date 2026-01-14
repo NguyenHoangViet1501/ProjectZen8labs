@@ -10,9 +10,10 @@ import java.util.List;
 public interface CommentRepository extends JpaRepository<Comment, Long> {
 
     /**
-     * Lấy tất cả comments của một task, sắp xếp theo thời gian tạo giảm dần
+     * Lấy tất cả comments của một task, sắp xếp theo thời gian tạo tăng dần (cũ
+     * nhất trước)
      */
-    List<Comment> findByTaskIdOrderByCreatedAtDesc(Long taskId);
+    List<Comment> findByTaskIdOrderByCreatedAtAsc(Long taskId);
 
     /**
      * Đếm số comment của một task
